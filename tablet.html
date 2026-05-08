@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Photobooth — Bal 2026</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    /* ── Variables ──────────────────────────────────────────────── */
+    :root {
+      --bg:          #0a0a1a;
+      --surface:     #13132a;
+      --surface2:    #1c1c38;
+      --border:      #2a2a4a;
+      --gold:        #d4af37;
+      --gold-light:  #e8cc6a;
+      --gold-dark:   #b8942a;
+      --text:        #e8e8f0;
+      --muted:       #7070a0;
+      --danger:      #e05555;
+      --success:     #55d4a0;
+      --radius:      16px;
+      --radius-sm:   8px;
+    }
+
+    /* ── Reset ──────────────────────────────────────────────────── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .logo {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--gold);
+      letter-spacing: 0.05em;
+    }
+    .logo span { color: var(--muted); font-weight: 400; font-size: 14px; margin-left: 8px; }
+    #phone-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    #phone-led {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s;
+    }
+    #phone-led.connected    { background: var(--success); box-shadow: 0 0 8px var(--success); }
+    #phone-led.disconnected { background: var(--danger); }
+
+    /* ── Contenu principal ──────────────────────────────────────── */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      gap: 24px;
+      overflow-y: auto;
+    }
+
+    /* ── Carte générique ─────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      width: 100%;
+      max-width: 700px;
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 16px;
+    }
+
+    /* ── Boutons ─────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      border-radius: 99px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+    .btn-gold {
+      background: var(--gold);
+      color: #0a0a1a;
+    }
+    .btn-gold:hover { background: var(--gold-light); transform: translateY(-1px); }
+    .btn-gold:disabled { opacity: 0.4; pointer-events: none; }
+    .btn-outline {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-outline:hover { border-color: var(--gold); color: var(--gold); }
+    .btn-sm { padding: 8px 18px; font-size: 14px; }
+    .btn-danger { background: var(--danger); color: #fff; }
+
+    /* ── Sections (états) ────────────────────────────────────────── */
+    .section { display: none; width: 100%; max-width: 700px; flex-direction: column; gap: 20px; }
+    .section.active { display: flex; }
+
+    /* ── ÉTAT 1 : Connexion téléphone ───────────────────────────── */
+    #sec-connect { align-items: center; text-align: center; }
+    #sec-connect h2 { font-size: 26px; font-weight: 700; }
+    #sec-connect p  { color: var(--muted); font-size: 16px; line-height: 1.6; }
+    #qr-phone {
+      background: #fff;
+      border-radius: var(--radius);
+      padding: 16px;
+      display: inline-block;
+    }
+    #session-code {
+      font-family: monospace;
+      font-size: 24px;
+      letter-spacing: 0.3em;
+      color: var(--gold);
+      background: var(--surface2);
+      padding: 10px 24px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+    }
+
+    /* ── ÉTAT 2 : Preview + déclenchement ───────────────────────── */
+    #preview-canvas {
+      width: 100%;
+      border-radius: var(--radius-sm);
+      background: #000;
+      aspect-ratio: 16/9;
+      display: block;
+    }
+    #sec-ready { align-items: center; }
+    #btn-start { font-size: 20px; padding: 18px 48px; }
+
+    /* ── ÉTAT 3 : Capture en cours ───────────────────────────────── */
+    #sec-capturing { align-items: center; text-align: center; }
+    .photo-slots {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      width: 100%;
+    }
+    .photo-slot {
+      aspect-ratio: 4/3;
+      background: var(--surface2);
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      position: relative;
+      transition: border-color 0.3s;
+    }
+    .photo-slot.active { border-color: var(--gold); animation: pulse 1s infinite; }
+    .photo-slot.done   { border-color: var(--success); border-style: solid; }
+    .photo-slot img    { width: 100%; height: 100%; object-fit: cover; }
+    .slot-num {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: var(--muted);
+    }
+    @keyframes pulse {
+      0%, 100% { border-color: var(--gold); }
+      50%       { border-color: var(--gold-dark); }
+    }
+    #capture-info { font-size: 18px; color: var(--muted); }
+    #capture-countdown {
+      font-size: 80px;
+      font-weight: 900;
+      color: var(--gold);
+      min-height: 100px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── ÉTAT 4 : Éditeur de strip ───────────────────────────────── */
+    #strip-wrap {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+      width: 100%;
+    }
+    #strip-canvas-container {
+      flex-shrink: 0;
+      width: 240px;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 2px solid var(--border);
+      cursor: crosshair;
+    }
+    #strip-canvas {
+      display: block;
+      width: 100%;
+    }
+    .overlay-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .overlay-section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .sticker-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+    }
+    .sticker-btn {
+      background: var(--surface2);
+      border: 2px solid transparent;
+      border-radius: var(--radius-sm);
+      font-size: 26px;
+      aspect-ratio: 1;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .sticker-btn:hover  { border-color: var(--gold); transform: scale(1.1); }
+    .sticker-btn.active { border-color: var(--gold); background: rgba(212,175,55,0.15); }
+    .text-input-row {
+      display: flex;
+      gap: 8px;
+    }
+    .text-input-row input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      padding: 10px 14px;
+      font-size: 14px;
+    }
+    .text-input-row input::placeholder { color: var(--muted); }
+    .text-input-row input:focus { outline: none; border-color: var(--gold); }
+    .color-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .color-swatch {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 3px solid transparent;
+      transition: border-color 0.15s;
+    }
+    .color-swatch.active { border-color: var(--gold); }
+    #overlay-hint {
+      font-size: 13px;
+      color: var(--muted);
+      background: rgba(212,175,55,0.08);
+      border: 1px solid rgba(212,175,55,0.2);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      line-height: 1.5;
+    }
+    #edit-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    /* ── ÉTAT 5 : Partage ────────────────────────────────────────── */
+    #sec-share { align-items: center; text-align: center; }
+    #sec-share h2 { font-size: 28px; font-weight: 700; color: var(--gold); }
+    #qr-strip {
+      background: #fff;
+      border-radius: var(--radius);
+      padding: 16px;
+      display: inline-block;
+    }
+    #qr-strip img { display: block; width: 220px; height: 220px; }
+    .email-form {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      max-width: 400px;
+    }
+    .email-form input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      padding: 12px 16px;
+      font-size: 15px;
+    }
+    .email-form input::placeholder { color: var(--muted); }
+    .email-form input:focus { outline: none; border-color: var(--gold); }
+    #email-status {
+      font-size: 14px;
+      min-height: 20px;
+    }
+    #strip-preview-thumb {
+      max-width: 180px;
+      border-radius: var(--radius-sm);
+      border: 2px solid var(--border);
+    }
+
+    /* ── Galerie ─────────────────────────────────────────────────── */
+    #gallery-section {
+      width: 100%;
+      max-width: 700px;
+      margin-top: 12px;
+    }
+    #gallery-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      cursor: pointer;
+      width: 100%;
+      color: var(--text);
+      font-size: 16px;
+    }
+    #gallery-toggle:hover { border-color: var(--gold); }
+    #gallery-body { display: none; margin-top: 12px; }
+    #gallery-body.open { display: block; }
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 12px;
+    }
+    .gallery-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .gallery-item:hover { border-color: var(--gold); }
+    .gallery-item img { width: 100%; display: block; aspect-ratio: 1/2; object-fit: cover; }
+    .gallery-item-time {
+      padding: 6px 10px;
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+    }
+    #gallery-empty { color: var(--muted); font-size: 14px; text-align: center; padding: 24px 0; }
+
+    /* ── Modal galerie ───────────────────────────────────────────── */
+    #modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 500;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    #modal.open { display: flex; }
+    #modal-inner {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 24px;
+      max-width: 360px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      position: relative;
+    }
+    #modal-close {
+      position: absolute;
+      top: 12px;
+      right: 16px;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 22px;
+      cursor: pointer;
+    }
+    #modal img { width: 100%; border-radius: var(--radius-sm); }
+    #modal-qr { background: #fff; border-radius: var(--radius-sm); padding: 10px; }
+    #modal-qr img { width: 140px; height: 140px; display: block; }
+
+    /* ── Toast ───────────────────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      padding: 12px 24px;
+      font-size: 15px;
+      z-index: 600;
+      transition: transform 0.3s;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── Séparateur ──────────────────────────────────────────────── */
+    .sep {
+      width: 100%;
+      max-width: 700px;
+      border: none;
+      border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 560px) {
+      #strip-wrap { flex-direction: column; align-items: center; }
+      #strip-canvas-container { width: 200px; }
+      .photo-slots { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="logo">✦ Photobooth <span>Bal 2026</span></div>
+    <div id="phone-status">
+      <div id="phone-led"></div>
+      <span id="phone-label">Téléphone non connecté</span>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ══ SECTION 1 : Connexion téléphone ══ -->
+    <section id="sec-connect" class="section active">
+      <h2>Connectez votre téléphone</h2>
+      <p>Scannez ce QR code avec la caméra de votre téléphone pour l'utiliser comme caméra du photobooth.</p>
+      <div id="qr-phone"></div>
+      <div id="session-code">—</div>
+      <p style="color:var(--muted);font-size:14px;">Ou tapez manuellement l'URL affichée ci-dessus dans votre navigateur.</p>
+      <div id="connect-url" style="font-family:monospace;font-size:13px;color:var(--muted);word-break:break-all;max-width:480px;"></div>
+    </section>
+
+    <!-- ══ SECTION 2 : Preview + déclenchement ══ -->
+    <section id="sec-ready" class="section">
+      <div class="card" style="padding:0;overflow:hidden;">
+        <canvas id="preview-canvas"></canvas>
+      </div>
+      <button id="btn-start" class="btn btn-gold" disabled>
+        📸 Démarrer le strip (4 photos)
+      </button>
+      <p style="color:var(--muted);font-size:14px;text-align:center;">
+        Placez-vous face à la caméra, puis appuyez sur le bouton.
+      </p>
+    </section>
+
+    <!-- ══ SECTION 3 : Capture en cours ══ -->
+    <section id="sec-capturing" class="section">
+      <div class="card-title" style="text-align:center">Prise en cours</div>
+      <div id="capture-countdown">—</div>
+      <div id="capture-info">Préparez-vous !</div>
+      <div class="photo-slots">
+        <div class="photo-slot" id="slot-0"><div class="slot-num">1</div></div>
+        <div class="photo-slot" id="slot-1"><div class="slot-num">2</div></div>
+        <div class="photo-slot" id="slot-2"><div class="slot-num">3</div></div>
+        <div class="photo-slot" id="slot-3"><div class="slot-num">4</div></div>
+      </div>
+    </section>
+
+    <!-- ══ SECTION 4 : Éditeur strip ══ -->
+    <section id="sec-edit" class="section">
+      <div class="card-title">Personnalisez votre strip</div>
+
+      <div id="strip-wrap">
+        <!-- Canvas strip -->
+        <div id="strip-canvas-container">
+          <canvas id="strip-canvas"></canvas>
+        </div>
+
+        <!-- Panneau overlays -->
+        <div class="overlay-panel">
+
+          <!-- Stickers -->
+          <div class="overlay-section-title">✨ Stickers</div>
+          <div class="sticker-grid" id="sticker-grid">
+            <!-- rempli par JS -->
+          </div>
+
+          <!-- Texte -->
+          <div class="overlay-section-title">✏️ Texte</div>
+          <div class="text-input-row">
+            <input id="text-input" type="text" placeholder="Votre message..." maxlength="40">
+            <button class="btn btn-outline btn-sm" id="btn-add-text">Ajouter</button>
+          </div>
+          <div class="color-row">
+            <span style="font-size:12px;color:var(--muted)">Couleur :</span>
+          </div>
+          <div class="color-row" id="color-row"></div>
+
+          <!-- Hint -->
+          <div id="overlay-hint">
+            💡 Sélectionnez un sticker ou tapez un texte, puis <strong>cliquez sur le strip</strong> pour le placer.
+          </div>
+
+          <div id="edit-actions">
+            <button class="btn btn-outline btn-sm" id="btn-undo">↩ Annuler dernier</button>
+            <button class="btn btn-outline btn-sm" id="btn-clear-overlays">🗑 Tout effacer</button>
+          </div>
+
+          <button class="btn btn-gold" id="btn-validate" style="margin-top:8px;">
+            ✓ Valider le strip
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ SECTION 5 : Partage ══ -->
+    <section id="sec-share" class="section">
+      <h2>🎉 Votre strip est prêt !</h2>
+
+      <div style="display:flex;gap:32px;align-items:center;flex-wrap:wrap;justify-content:center;">
+        <div>
+          <div class="card-title" style="text-align:center">Scannez pour télécharger</div>
+          <div id="qr-strip"><img id="qr-strip-img" alt="QR Code"></div>
+        </div>
+        <img id="strip-preview-thumb" alt="Votre strip">
+      </div>
+
+      <div class="card-title">Recevoir par email</div>
+      <div class="email-form">
+        <input type="email" id="email-input" placeholder="votre@email.fr">
+        <button class="btn btn-gold btn-sm" id="btn-send-email">Envoyer</button>
+      </div>
+      <div id="email-status"></div>
+
+      <button class="btn btn-outline" id="btn-new-session">
+        🔄 Nouvelle session
+      </button>
+    </section>
+
+    <hr class="sep">
+
+    <!-- ══ Galerie ══ -->
+    <div id="gallery-section">
+      <button id="gallery-toggle">
+        <span>📷 Galerie de la soirée</span>
+        <span id="gallery-count" style="color:var(--muted);font-size:14px">0 strip(s)</span>
+      </button>
+      <div id="gallery-body">
+        <div class="gallery-grid" id="gallery-grid"></div>
+        <div id="gallery-empty">Aucun strip pour le moment.</div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ══ Modal galerie ══ -->
+  <div id="modal">
+    <div id="modal-inner">
+      <button id="modal-close">✕</button>
+      <img id="modal-img" alt="Strip">
+      <div id="modal-qr"><img id="modal-qr-img" alt="QR"></div>
+      <div id="modal-time" style="font-size:12px;color:var(--muted)"></div>
+    </div>
+  </div>
+
+  <!-- ══ Toast ══ -->
+  <div id="toast"></div>
+
+  <script>
+  // ═══════════════════════════════════════════════════════════════════
+  //  STATE
+  // ═══════════════════════════════════════════════════════════════════
+
+  let state = {
+    sessionId:    null,
+    ws:           null,
+    phoneOk:      false,
+    capturedURLs: [],   // URLs des 4 photos
+    totalPhotos:  4,
+    // Strip editor
+    photoImgs:    [],   // HTMLImageElement[] chargées
+    overlays:     [],   // { type:'sticker'|'text', emoji?, text?, x, y, color, size }
+    selectedSticker: null,
+    selectedColor:   '#ffffff',
+    // Strip final
+    stripUrl:     null,
+    stripQR:      null,
+    stripFilename: null,
+  };
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  CONSTANTES STRIP
+  // ═══════════════════════════════════════════════════════════════════
+
+  const SW    = 480;  // largeur strip (canvas px)
+  const PAD   = 28;   // marge extérieure
+  const GAP   = 14;   // espace entre photos
+  const PW    = SW - PAD * 2;     // largeur photo
+  const PH    = Math.round(PW * 3/4); // hauteur photo (4:3 landscape)
+  const FOOTER= 80;
+  const SH    = PAD + 4*(PH + GAP) - GAP + FOOTER + PAD;
+
+  const STICKERS = ['🌟','⭐','🎉','🥂','🎊','💫','❤️','🔥','✨','🎵','🌸','💎','🏆','😎','🎓'];
+  const COLORS   = ['#ffffff','#d4af37','#ff6b9d','#6bffb8','#6bb5ff','#ff9f6b','#c96bff'];
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  ÉLÉMENTS DOM
+  // ═══════════════════════════════════════════════════════════════════
+
+  const $ = id => document.getElementById(id);
+  const sections = {
+    connect:   $('sec-connect'),
+    ready:     $('sec-ready'),
+    capturing: $('sec-capturing'),
+    edit:      $('sec-edit'),
+    share:     $('sec-share'),
+  };
+
+  const previewCanvas = $('preview-canvas');
+  const previewCtx    = previewCanvas.getContext('2d');
+  const stripCanvas   = $('strip-canvas');
+  const stripCtx      = stripCanvas.getContext('2d');
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  NAVIGATION
+  // ═══════════════════════════════════════════════════════════════════
+
+  function showSection(name) {
+    Object.values(sections).forEach(s => s.classList.remove('active'));
+    sections[name].classList.add('active');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  TOAST
+  // ═══════════════════════════════════════════════════════════════════
+
+  function toast(msg, duration = 3000) {
+    const el = $('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), duration);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  SESSION & QR CODE TÉLÉPHONE
+  // ═══════════════════════════════════════════════════════════════════
+
+  async function initSession() {
+    const res  = await fetch('/api/session');
+    const data = await res.json();
+    state.sessionId = data.sessionId;
+    $('session-code').textContent = data.sessionId;
+
+    const phoneUrl = `${location.origin}/phone.html?session=${data.sessionId}`;
+    $('connect-url').textContent = phoneUrl;
+
+    new QRCode($('qr-phone'), {
+      text:          phoneUrl,
+      width:         220,
+      height:        220,
+      colorDark:     '#1a1a2e',
+      colorLight:    '#ffffff',
+      correctLevel:  QRCode.CorrectLevel.M
+    });
+
+    connectWS();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  WEBSOCKET
+  // ═══════════════════════════════════════════════════════════════════
+
+  function connectWS() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    state.ws = new WebSocket(`${proto}://${location.host}`);
+
+    state.ws.onopen = () => {
+      state.ws.send(JSON.stringify({ type: 'register', sessionId: state.sessionId, role: 'tablet' }));
+    };
+
+    state.ws.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+
+      switch (msg.type) {
+
+        case 'phone-connected':
+          setPhoneStatus(true);
+          $('btn-start').disabled = false;
+          showSection('ready');
+          break;
+
+        case 'phone-disconnected':
+          setPhoneStatus(false);
+          $('btn-start').disabled = true;
+          toast('⚠️ Téléphone déconnecté');
+          break;
+
+        case 'frame': {
+          // Affichage preview
+          const img = new Image();
+          img.onload = () => {
+            previewCanvas.width  = img.width;
+            previewCanvas.height = img.height;
+            previewCtx.drawImage(img, 0, 0);
+          };
+          img.src = msg.data;
+          break;
+        }
+
+        case 'photo-captured': {
+          const url = location.origin + msg.url;
+          state.capturedURLs.push(url);
+          showPhotoInSlot(msg.index, url);
+          $('capture-info').textContent = `Photo ${msg.index + 1} / ${msg.total} prise !`;
+          if (state.capturedURLs.length >= state.totalPhotos) {
+            setTimeout(() => startEditing(), 1200);
+          }
+          break;
+        }
+      }
+    };
+
+    state.ws.onclose = () => setTimeout(connectWS, 2000);
+  }
+
+  function setPhoneStatus(ok) {
+    state.phoneOk = ok;
+    $('phone-led').className = ok ? 'connected' : 'disconnected';
+    $('phone-label').textContent = ok ? 'Téléphone connecté' : 'Téléphone non connecté';
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  DÉCLENCHEMENT
+  // ═══════════════════════════════════════════════════════════════════
+
+  $('btn-start').addEventListener('click', () => {
+    state.capturedURLs = [];
+    // Reset slots
+    for (let i = 0; i < 4; i++) {
+      const slot = $('slot-' + i);
+      slot.className = 'photo-slot';
+      slot.innerHTML = `<div class="slot-num">${i + 1}</div>`;
+    }
+    $('capture-countdown').textContent = '—';
+    $('capture-info').textContent = 'Préparez-vous !';
+    showSection('capturing');
+
+    state.ws.send(JSON.stringify({
+      type:      'trigger',
+      sessionId: state.sessionId,
+      count:     state.totalPhotos
+    }));
+
+    // Simulation du compte à rebours côté tablette
+    simulateCaptureUI();
+  });
+
+  function simulateCaptureUI() {
+    let photoIdx = 0;
+    let n = 3;
+    $('slot-0').classList.add('active');
+
+    const tick = setInterval(() => {
+      $('capture-countdown').textContent = n;
+      n--;
+      if (n < 0) {
+        $('capture-countdown').textContent = '📸';
+        // La vraie photo arrive via WS, on attend juste
+        clearInterval(tick);
+
+        // Relancer pour la prochaine photo si applicable
+        setTimeout(() => {
+          photoIdx++;
+          if (photoIdx < state.totalPhotos && state.capturedURLs.length < state.totalPhotos) {
+            n = 3;
+            $('slot-' + photoIdx)?.classList.add('active');
+            const next = setInterval(() => {
+              $('capture-countdown').textContent = n;
+              n--;
+              if (n < 0) {
+                $('capture-countdown').textContent = '📸';
+                clearInterval(next);
+              }
+            }, 1000);
+          }
+        }, 2800);
+      }
+    }, 1000);
+  }
+
+  function showPhotoInSlot(index, url) {
+    const slot = $('slot-' + index);
+    if (!slot) return;
+    slot.classList.remove('active');
+    slot.classList.add('done');
+    slot.innerHTML = `<img src="${url}" alt="Photo ${index + 1}">`;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  ÉDITEUR DE STRIP
+  // ═══════════════════════════════════════════════════════════════════
+
+  async function startEditing() {
+    state.overlays = [];
+    state.selectedSticker = null;
+    showSection('edit');
+
+    // Charger les images
+    state.photoImgs = await Promise.all(
+      state.capturedURLs.map(loadImage)
+    );
+
+    stripCanvas.width  = SW;
+    stripCanvas.height = SH;
+    drawStrip();
+  }
+
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload  = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
+  function drawStrip() {
+    stripCtx.clearRect(0, 0, SW, SH);
+
+    // ── Fond blanc
+    stripCtx.fillStyle = '#ffffff';
+    stripCtx.fillRect(0, 0, SW, SH);
+
+    // ── Photos
+    for (let i = 0; i < state.photoImgs.length; i++) {
+      const x = PAD;
+      const y = PAD + i * (PH + GAP);
+      // Ombre légère
+      stripCtx.shadowColor   = 'rgba(0,0,0,0.1)';
+      stripCtx.shadowBlur    = 8;
+      stripCtx.shadowOffsetY = 3;
+      stripCtx.drawImage(state.photoImgs[i], x, y, PW, PH);
+      stripCtx.shadowColor   = 'transparent';
+      stripCtx.shadowBlur    = 0;
+      stripCtx.shadowOffsetY = 0;
+    }
+
+    // ── Footer "Bal 2026"
+    const fy = SH - FOOTER - PAD + GAP;
+    stripCtx.fillStyle = '#1a1a2e';
+    stripCtx.fillRect(0, fy, SW, FOOTER + PAD);
+
+    // Ligne dorée
+    stripCtx.fillStyle = '#d4af37';
+    stripCtx.fillRect(0, fy, SW, 3);
+
+    // Texte
+    stripCtx.fillStyle   = '#d4af37';
+    stripCtx.textAlign   = 'center';
+    stripCtx.font        = 'bold 22px Georgia, serif';
+    stripCtx.letterSpacing = '0.1em';
+    stripCtx.fillText('✦ BAL DE FIN D\'ANNÉE 2026 ✦', SW / 2, fy + 46);
+
+    // ── Overlays
+    for (const o of state.overlays) {
+      if (o.type === 'sticker') {
+        stripCtx.font    = `${o.size}px serif`;
+        stripCtx.textAlign = 'center';
+        stripCtx.fillText(o.emoji, o.x, o.y);
+      } else if (o.type === 'text') {
+        stripCtx.font      = `bold ${o.size}px Helvetica, Arial, sans-serif`;
+        stripCtx.fillStyle = o.color;
+        stripCtx.textAlign = 'center';
+        // Contour pour lisibilité
+        stripCtx.strokeStyle = (o.color === '#ffffff') ? '#1a1a2e' : '#ffffff';
+        stripCtx.lineWidth   = 3;
+        stripCtx.strokeText(o.text, o.x, o.y);
+        stripCtx.fillText(o.text, o.x, o.y);
+      }
+    }
+  }
+
+  // Sticker panel
+  const stickerGrid = $('sticker-grid');
+  STICKERS.forEach(emoji => {
+    const btn = document.createElement('button');
+    btn.className   = 'sticker-btn';
+    btn.textContent = emoji;
+    btn.title       = 'Placer ' + emoji;
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.sticker-btn').forEach(b => b.classList.remove('active'));
+      if (state.selectedSticker === emoji) {
+        state.selectedSticker = null;
+      } else {
+        state.selectedSticker = emoji;
+        btn.classList.add('active');
+        $('overlay-hint').innerHTML = `💡 Cliquez sur le strip pour placer <strong>${emoji}</strong>`;
+      }
+    });
+    stickerGrid.appendChild(btn);
+  });
+
+  // Color swatches
+  const colorRow = $('color-row');
+  COLORS.forEach((c, i) => {
+    const sw = document.createElement('div');
+    sw.className = 'color-swatch' + (i === 0 ? ' active' : '');
+    sw.style.background = c;
+    sw.style.border = `3px solid ${i === 0 ? 'var(--gold)' : 'transparent'}`;
+    sw.addEventListener('click', () => {
+      document.querySelectorAll('.color-swatch').forEach(s => {
+        s.style.border = '3px solid transparent';
+        s.classList.remove('active');
+      });
+      sw.style.border = '3px solid var(--gold)';
+      sw.classList.add('active');
+      state.selectedColor = c;
+    });
+    colorRow.appendChild(sw);
+  });
+
+  // Clic sur le strip canvas
+  $('strip-canvas-container').addEventListener('click', (e) => {
+    const rect  = stripCanvas.getBoundingClientRect();
+    const scaleX = SW / rect.width;
+    const scaleY = SH / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+
+    if (state.selectedSticker) {
+      state.overlays.push({ type: 'sticker', emoji: state.selectedSticker, x, y, size: 52 });
+      drawStrip();
+    } else if ($('text-input').value.trim()) {
+      state.overlays.push({
+        type:  'text',
+        text:  $('text-input').value.trim(),
+        x, y,
+        color: state.selectedColor,
+        size:  34
+      });
+      $('text-input').value = '';
+      drawStrip();
+    }
+  });
+
+  // Bouton "Ajouter texte"
+  $('btn-add-text').addEventListener('click', () => {
+    const txt = $('text-input').value.trim();
+    if (!txt) return;
+    // Place au centre du strip par défaut
+    state.overlays.push({
+      type: 'text', text: txt,
+      x: SW / 2, y: SH / 3,
+      color: state.selectedColor, size: 34
+    });
+    $('text-input').value = '';
+    drawStrip();
+    $('overlay-hint').innerHTML = '💡 Texte ajouté ! Continuez à personnaliser ou validez.';
+  });
+
+  $('btn-undo').addEventListener('click', () => {
+    state.overlays.pop();
+    drawStrip();
+  });
+
+  $('btn-clear-overlays').addEventListener('click', () => {
+    state.overlays = [];
+    drawStrip();
+    document.querySelectorAll('.sticker-btn').forEach(b => b.classList.remove('active'));
+    state.selectedSticker = null;
+  });
+
+  // Validation → upload strip
+  $('btn-validate').addEventListener('click', async () => {
+    $('btn-validate').disabled = true;
+    $('btn-validate').textContent = '⏳ Génération...';
+
+    const imageData = stripCanvas.toDataURL('image/jpeg', 0.92);
+
+    try {
+      const res  = await fetch('/api/strip', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ imageData, sessionId: state.sessionId })
+      });
+      const data = await res.json();
+
+      state.stripUrl      = data.stripUrl;
+      state.stripQR       = data.qrCode;
+      state.stripFilename = data.filename;
+
+      showShareScreen(data);
+      refreshGallery();
+    } catch (err) {
+      toast('❌ Erreur lors de la génération du strip');
+      console.error(err);
+    } finally {
+      $('btn-validate').disabled = false;
+      $('btn-validate').textContent = '✓ Valider le strip';
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  PARTAGE
+  // ═══════════════════════════════════════════════════════════════════
+
+  function showShareScreen(data) {
+    $('qr-strip-img').src     = data.qrCode;
+    $('strip-preview-thumb').src = data.stripUrl;
+    showSection('share');
+  }
+
+  $('btn-send-email').addEventListener('click', async () => {
+    const email = $('email-input').value.trim();
+    if (!email) { toast('Entrez une adresse email valide'); return; }
+
+    $('btn-send-email').disabled   = true;
+    $('btn-send-email').textContent = '⏳';
+    $('email-status').textContent   = '';
+    $('email-status').style.color   = 'var(--muted)';
+
+    try {
+      const res  = await fetch('/api/email', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          email,
+          stripUrl: state.stripUrl,
+          filename: state.stripFilename
+        })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        $('email-status').textContent = '✅ Email envoyé !';
+        $('email-status').style.color = 'var(--success)';
+        $('email-input').value = '';
+      } else {
+        $('email-status').textContent = '❌ ' + data.error;
+        $('email-status').style.color = 'var(--danger)';
+      }
+    } catch (err) {
+      $('email-status').textContent = '❌ Erreur réseau';
+      $('email-status').style.color = 'var(--danger)';
+    } finally {
+      $('btn-send-email').disabled   = false;
+      $('btn-send-email').textContent = 'Envoyer';
+    }
+  });
+
+  $('btn-new-session').addEventListener('click', () => {
+    // Reload complet pour reset
+    location.reload();
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  GALERIE
+  // ═══════════════════════════════════════════════════════════════════
+
+  $('gallery-toggle').addEventListener('click', () => {
+    const body = $('gallery-body');
+    body.classList.toggle('open');
+    if (body.classList.contains('open')) refreshGallery();
+  });
+
+  async function refreshGallery() {
+    try {
+      const res   = await fetch('/api/gallery');
+      const items = await res.json();
+
+      $('gallery-count').textContent = `${items.length} strip(s)`;
+      const grid  = $('gallery-grid');
+      const empty = $('gallery-empty');
+      grid.innerHTML = '';
+
+      if (items.length === 0) {
+        empty.style.display = 'block';
+        return;
+      }
+      empty.style.display = 'none';
+
+      items.forEach(item => {
+        const div  = document.createElement('div');
+        div.className = 'gallery-item';
+        const time = new Date(item.createdAt).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+        div.innerHTML = `
+          <img src="${item.url}" alt="Strip" loading="lazy">
+          <div class="gallery-item-time">${time}</div>
+        `;
+        div.addEventListener('click', () => openModal(item));
+        grid.appendChild(div);
+      });
+    } catch {}
+  }
+
+  function openModal(item) {
+    $('modal-img').src      = item.url;
+    $('modal-qr-img').src   = item.qrCode;
+    $('modal-time').textContent = new Date(item.createdAt).toLocaleString('fr-FR');
+    $('modal').classList.add('open');
+  }
+
+  $('modal-close').addEventListener('click', () => $('modal').classList.remove('open'));
+  $('modal').addEventListener('click', e => {
+    if (e.target === $('modal')) $('modal').classList.remove('open');
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  DÉMARRAGE
+  // ═══════════════════════════════════════════════════════════════════
+
+  initSession();
+  </script>
+</body>
+</html>
